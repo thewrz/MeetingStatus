@@ -38,7 +38,7 @@ class HomeAssistantNotifier:
         if in_meeting:
             led_payload = {"text": "MEET", "color": "red"}
         else:
-            led_payload = {"text": "FREE", "color": "green"}
+            led_payload = {"text": "FREE", "color": "cyan"}
 
         # The service expects payload as an escaped JSON string
         service_data = {"payload": json.dumps(led_payload)}

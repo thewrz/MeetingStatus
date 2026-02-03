@@ -1,181 +1,211 @@
-# Home Assistant Microsoft Teams Status for MacOS
-<a href="https://www.buymeacoffee.com/RobertD502" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="50" width="212"></a>
-<a href="https://liberapay.com/RobertD502/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg" height="50" width="150"></a>
+# Meeting Status Detector
 
-Although the Home Assistant MacOS companion app allows you to use the state of your camera and microphone to determine if you are in a Teams meeting, this method doesn't work if you are in a meeting with both off. The aim of this project is to send your meeting status (In meeting, Not in meeting) to Home Assistant without relying on the status of your camera or microphone.
-* If using the old Microsoft Teams application: This is accomplished by reading the Microsoft Teams log.
-* If you are using the new version of Microsoft Teams (titled `Microsoft Teams (work or school)`): Microsoft no longer writes the state to the log file. This script works around the limitation by looking at the `powerd` process' logs to determine if/if not in a meeting.
+A cross-platform Python application that detects Microsoft Teams and Zoom meeting status via window titles and reports to Home Assistant.
 
-Regardless of which of the two methods mentioned above applies to you, the logs are automatically checked every 2 seconds and the current state is sent to Home Assistant if it differs from the previous state.
+## Features
 
-## Important Note
-There are two different methods titled `Local` and `External`.
+- Cross-platform support: Windows, macOS, and Linux
+- Detects meetings from Microsoft Teams and Zoom
+- Reports status to Home Assistant via webhook
+- Only sends updates when status changes (not polling Home Assistant constantly)
+- Configurable via environment variables or JSON config file
 
-### External
-If you are having to connect to a work VPN, you likely don't have access to your local network. If this is the case, use the `External` method.
+## Requirements
 
-**Note:** This method requires that your Home Assistant instance is accessible externally and while connected to your employer's VPN.
-
-### Local
-If you don't have to connect to your employer's VPN or, in the rare instance, if you are able to access to your local network while connected to your employer's VPN, use the `Local` method.
-
-
-## Prerequisites
-Regardless of which of the two methods you are using, there are few things that will need to be done:
-
-#### Enable Full Disk Access for sh
-1. On your Mac, open "System Preferences" and navigate to "Security & Privacy" and select the `Privacy` tab.
-2. On the left-hand side select "Full Disk Access"
-3. On the right-hand side, ensure that `sh` is present and checked. If not, proceed to step 4.
-4. Click on the lock icon in the lower left-hand corner and enter your password.
-5. If `sh` already exists on the right-hand side, but isn't checked, check it to give it Full Disk Access. If it is not present, proceed to step 6.
-6. Click on the `+` button. Navigate to your hard drive, then the `bin` folder, select `sh`, and click "Open". If you don't see the `bin` folder when clicking on your hard drive, make hidden folders visible with the following key combination: `cmd` + `shift` + `.`
-7. Make sure `sh` is checked if it isn't already after adding it.
-
-![image](https://github.com/RobertD502/TeamsStatusMacOS/assets/52541649/04337bad-1139-4e46-bb11-9aa829e22e76)
-
-
-#### Create the Teams_Status Directory
-1. In your `Documents` folder, create a new folder titled `Teams_Status`
-
-#### Create Input Text Helper in Home Assistant
-1. In Home Assistant, navigate to the `Integrations` page.
-2. At the top of the page, click on `Helpers`.
-3. In the lower right-hand corner, click on `+ CREATE HELPER`.
-4. Select `Text` as your helper.
-5. Name the helper `Microsoft Teams Status`. *It is important to name the entity exactly this as the scripts rely on a specific entity_id.
+- Python 3.10+
+- Home Assistant with a long-lived access token
+- Platform-specific requirements:
+  - **Linux**: `wmctrl` or `xdotool`
+  - **macOS**: No additional requirements (uses AppleScript)
+  - **Windows**: `pywin32` (optional, falls back to PowerShell)
 
 ## Installation
 
-Download the files from this repository. Depending on which method you are using, follow the corresponding guide below.
+### 1. Clone the repository
 
-<details>
-  <summary> <b>Local Method</b> (<i>click to expand</i>)</summary>
-  <!---->
-
-### Move the script file
-1. Place the file titled `ms-teams-status-local.sh` into the `Teams_Status` folder that you previously created in your `Documents` folder.
-2. Make the script executable:
-- On your Mac, open a terminal window and execute the following command:
-```shell
-chmod +x ~/Documents/Teams_Status/ms-teams-status-local.sh
-```
-3. Remove the quarantine attribute automatically added to the downloaded script:
-```shell
-xattr -d com.apple.quarantine ~/Documents/Teams_Status/ms-teams-status-local.sh
-```
-### Move the plist file
-1. Place the file titled `com.homeassistant.MSTeamsStatusSender-Local.plist` into `/Users/yourusername/Library/LaunchAgents`
-
-Note: The `Library` folder is a hidden folder. In order to see it, while inside the folder corresponding to your Mac username, press `cmd` + `shift` + `.`
-
-### Create a Long-Lived Token in Home Assistant
-1. In Home Assistant, click on your Profile (located in the lower left-hand corner).
-2. Scroll down to the section titled `Long-Lived Access Tokens`.
-3. Select `CREATE TOKEN`.
-4. Give the token a name and click on `Ok`.
-5. You will be presented with a long access token. Be sure to save it in a location as you will need it in the steps that follow.
-
-### Edit the script file
-1. Open the `ms-teams-status-local.sh` file (located in your Teams_Status folder) in an editor of your choosing.
-2. Change the `teams_version` variable to EITHER "Old" (including quotation marks) if you are using the old MS Teams or "New" (including quotation marks) if you are using the new version of MS Teams, also referred to as `Microsoft Teams (work or school)`
-3. Place your token inside of the `token` variable
-4. Place your local Home Assistant URL inside the `local_url` variable, e.g., `"http://192.168.1.42:8123"`
-5. Save the changes.
-
-### Load the plist file
-On your Mac, open a terminal window and execute the following command:
-```shell
-launchctl load -w ~/Library/LaunchAgents/com.homeassistant.MSTeamsStatusSender-Local.plist
+```bash
+git clone https://github.com/thewrz/MeetingStatus.git
+cd MeetingStatus
 ```
 
-That's it! Whenever you are logged in on your Mac, the script will run every 2 seconds and update the input_text.microsoft_teams_status entity if the current meeting state differs from the previous state.
+### 2. Install Python dependencies
 
-</details>
-
-<details>
-  <summary> <b>External Method</b> (<i>click to expand</i>)</summary>
-  <!---->
-
-### Move the script file
-1. Place the file titled `ms-teams-status-external.sh` into the `Teams_Status` folder that you previously created in your `Documents` folder.
-2. Make the script executable:
-- On your Mac, open a terminal window and execute the following command:
-```shell
-chmod +x ~/Documents/Teams_Status/ms-teams-status-external.sh
-```
-3. Remove the quarantine attribute automatically added to the downloaded script:
-```shell
-xattr -d com.apple.quarantine ~/Documents/Teams_Status/ms-teams-status-external.sh
-```
-### Move the plist file
-1. Place the file titled `com.homeassistant.MSTeamsStatusSender-External.plist` into `/Users/yourusername/Library/LaunchAgents`
-
-Note: The `Library` folder is a hidden folder. In order to see it, while inside the folder corresponding to your Mac username, press `cmd` + `shift` + `.`
-
-### Create a Webhook in Home Assistant
-1. Go to the `Automations` section of Home Assistant.
-2. Create a new automation.
-3. For the `Trigger` select `Webhook` and give it an ID.
-4. Click on the gear icon next to the ID field and make sure ONLY the box next to `POST` is checked.
-5. Add a new action and select `Call service`.
-6. Search for and select the `input_text.set_value` service.
-7. Select the `input_text.microsoft_teams_status` entity as the target.
-8. Paste the following into the Value field: `"{{trigger.json.state}}"`
-9. Save the Automation.
-10. If you are a NabuCasa user, you will need to enable the webhook and get the webhook URL by navigating to the `Home Assistant Cloud` menu located in the settings.
-
-For those that prefer YAML, this is the full YAML for the automation above:
-```yaml
-- id: '1686539374529'
-  alias: Microsoft Teams Status
-  description: ''
-  trigger:
-  - platform: webhook
-    allowed_methods:
-    - POST
-    local_only: false
-    webhook_id: Microsoft_Teams_Status
-  condition: []
-  action:
-  - service: input_text.set_value
-    data:
-      value: '{{trigger.json.state}}'
-    target:
-      entity_id: input_text.microsoft_teams_status
-  mode: single
+```bash
+pip install -r requirements.txt
 ```
 
-### Edit the script file
-1. Open the `ms-teams-status-external.sh` file (located in your Teams_Status folder) in an editor of your choosing.
-2. Change the `teams_version` variable to EITHER "Old" (including quotation marks) if you are using the old MS Teams or "New" (including quotation marks) if you are using the new version of MS Teams, also referred to as `Microsoft Teams (work or school)`
-3. Place your webhook url inside the `webhook_url` variable
-4. Save the changes.
+### 3. Install platform-specific tools
 
-### Load the plist file
-On your Mac, open a terminal window and execute the following command:
-```shell
-launchctl load -w ~/Library/LaunchAgents/com.homeassistant.MSTeamsStatusSender-External.plist
+**Linux (Arch/Manjaro):**
+```bash
+sudo pacman -S wmctrl
 ```
 
-That's it! Whenever you are logged in on your Mac, the script will run every 2 seconds and update the input_text.microsoft_teams_status entity if the current meeting state differs from the previous state.
-
-</details>
-
-## Experiencing Issues?
-Any errors that occur while running the script are logged to the error log file `ha.msteams-status.err`. This file can be located in the `tmp` folder (hidden folder nested within the hard drive directory as seen below).
-![image](https://github.com/RobertD502/TeamsStatusMacOS/assets/52541649/c50bbc33-4fc2-4b22-ae7b-ba23858e5b6a)
-
-## Stopping the script
-
-If you no longer want the script to run on your Mac, simply open up a Terminal window and execute the following command (which one depends on your original installation method):
-
-```shell
-launchctl unload -w ~/Library/LaunchAgents/com.homeassistant.MSTeamsStatusSender-Local.plist
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt install wmctrl
 ```
 
-or
+**macOS:** No additional tools needed.
 
-```shell
-launchctl unload -w ~/Library/LaunchAgents/com.homeassistant.MSTeamsStatusSender-External.plist
+**Windows:** The `pywin32` package is automatically installed from requirements.txt.
+
+### 4. Create a Home Assistant Long-Lived Access Token
+
+1. In Home Assistant, click on your profile (lower left corner)
+2. Scroll down to "Long-Lived Access Tokens"
+3. Click "Create Token"
+4. Give it a name and save the token
+
+### 5. Set up the LED Sign Script in Home Assistant
+
+Create a script in Home Assistant called `send_to_led_sign` that accepts a JSON payload with `text` and `color` fields. The meeting status detector will call this script with:
+
+- **In meeting:** `{"text": "MEET", "color": "red"}`
+- **Not in meeting:** `{"text": "FREE", "color": "cyan"}`
+
+### 6. Configure the application
+
+Copy the example config and edit it:
+
+```bash
+cp config.example.json config.json
 ```
+
+Edit `config.json`:
+
+```json
+{
+  "ha_url": "http://your-ha-instance:8123",
+  "ha_token": "your-long-lived-access-token",
+  "poll_interval_seconds": 2,
+  "detectors": ["teams", "zoom"]
+}
+```
+
+Or use environment variables:
+
+```bash
+export HA_URL="http://your-ha-instance:8123"
+export HA_TOKEN="your-long-lived-access-token"
+export MEETING_STATUS_POLL_INTERVAL=2
+export MEETING_STATUS_DETECTORS="teams,zoom"
+```
+
+## Usage
+
+### Run once (test mode)
+
+```bash
+python -m meeting_status --once -v
+```
+
+### Run with dry-run (no Home Assistant updates)
+
+```bash
+python -m meeting_status --dry-run -v
+```
+
+### Run continuously
+
+```bash
+python -m meeting_status
+```
+
+### Command-line options
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config FILE` | Path to config file |
+| `-v, --verbose` | Enable verbose logging |
+| `--dry-run` | Print status without sending to Home Assistant |
+| `--once` | Run once and exit (don't poll continuously) |
+
+## Running as a Service
+
+### Linux (systemd)
+
+Create `~/.config/systemd/user/meeting-status.service`:
+
+```ini
+[Unit]
+Description=Meeting Status Detector
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/MeetingStatus
+ExecStart=/usr/bin/python -m meeting_status
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+Enable and start:
+
+```bash
+systemctl --user enable meeting-status
+systemctl --user start meeting-status
+```
+
+### macOS (launchd)
+
+Create `~/Library/LaunchAgents/com.meeting-status.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.meeting-status</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>-m</string>
+        <string>meeting_status</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/path/to/MeetingStatus</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+```
+
+Load the service:
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.meeting-status.plist
+```
+
+### Windows (Task Scheduler)
+
+1. Open Task Scheduler
+2. Create a new task
+3. Set trigger to "At log on"
+4. Set action to run `python -m meeting_status` in the MeetingStatus directory
+5. Enable "Run whether user is logged on or not"
+
+## How It Works
+
+The application polls for visible window titles at a configurable interval (default: 2 seconds). Each detector checks window titles for patterns indicating an active meeting:
+
+**Microsoft Teams patterns:**
+- "Meeting with" or "Meeting in"
+- "Call with"
+- Timer showing call duration (e.g., "00:05:23")
+
+**Zoom patterns:**
+- "Zoom Meeting"
+- "Zoom Webinar"
+
+When the meeting status changes, the application sends a request to the Home Assistant `send_to_led_sign` script.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
