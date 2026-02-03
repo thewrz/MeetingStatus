@@ -2,10 +2,13 @@
 
 A cross-platform Python application that detects Microsoft Teams and Zoom meeting status via window titles and reports to Home Assistant.
 
+> **Note:** This application currently sends status updates to a specific Home Assistant script (`send_to_led_sign`) designed for an MQTT-connected LED sign. Future versions will support updating a Home Assistant helper entity directly, allowing you to use the meeting status in any automation you want.
+
 ## Features
 
 - Cross-platform support: Windows, macOS, and Linux
 - Detects meetings from Microsoft Teams and Zoom
+- **Executable verification**: Only detects meetings from actual Teams/Zoom processes, preventing false positives from other applications with similar window titles
 - Reports status to Home Assistant via webhook
 - Only sends updates when status changes (not polling Home Assistant constantly)
 - Configurable via environment variables or JSON config file
@@ -17,7 +20,7 @@ A cross-platform Python application that detects Microsoft Teams and Zoom meetin
 - Platform-specific requirements:
   - **Linux**: `wmctrl` or `xdotool`
   - **macOS**: No additional requirements (uses AppleScript)
-  - **Windows**: `pywin32` (optional, falls back to PowerShell)
+  - **Windows**: `pywin32` and `psutil` (optional, falls back to PowerShell)
 
 ## Installation
 
@@ -48,7 +51,7 @@ sudo apt install wmctrl
 
 **macOS:** No additional tools needed.
 
-**Windows:** The `pywin32` package is automatically installed from requirements.txt.
+**Windows:** The `pywin32` and `psutil` packages are automatically installed from requirements.txt.
 
 ### 4. Create a Home Assistant Long-Lived Access Token
 
@@ -193,7 +196,12 @@ launchctl load ~/Library/LaunchAgents/com.meeting-status.plist
 
 ## How It Works
 
-The application polls for visible window titles at a configurable interval (default: 2 seconds). Each detector checks window titles for patterns indicating an active meeting:
+The application polls for visible windows at a configurable interval (default: 2 seconds). For each window, it checks:
+
+1. **Process verification**: The window must belong to an actual Teams or Zoom executable
+2. **Title pattern matching**: The window title must match patterns indicating an active meeting
+
+This two-step approach prevents false positives from other applications that might have similar window titles (e.g., a text file named "zoom meeting.txt").
 
 **Microsoft Teams patterns:**
 - "Meeting with" or "Meeting in"
@@ -205,6 +213,11 @@ The application polls for visible window titles at a configurable interval (defa
 - "Zoom Webinar"
 
 When the meeting status changes, the application sends a request to the Home Assistant `send_to_led_sign` script.
+
+## Future Plans
+
+- Support for updating a Home Assistant helper entity (input_boolean or input_select) directly, enabling flexible use in any automation
+- Additional meeting application detectors (Google Meet, Webex, etc.)
 
 ## License
 
