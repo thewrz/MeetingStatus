@@ -1,7 +1,7 @@
 """Platform-specific window title detection."""
 
 import sys
-from .base import Platform
+from .base import Platform, WindowInfo
 
 def get_platform() -> Platform:
     """Get the appropriate platform implementation for the current OS."""
@@ -15,4 +15,4 @@ def get_platform() -> Platform:
         from .linux import LinuxPlatform
         return LinuxPlatform()
 
-__all__ = ["Platform", "get_platform"]
+__all__ = ["Platform", "WindowInfo", "get_platform"]

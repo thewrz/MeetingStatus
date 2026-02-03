@@ -7,6 +7,15 @@ from .base import MeetingDetector
 class ZoomDetector(MeetingDetector):
     """Detect Zoom meetings from window titles."""
 
+    # Valid process names for Zoom
+    PROCESS_NAMES = [
+        "zoom",            # Main Zoom process
+        "zoom.us",         # Zoom on some systems
+        "zoomus",          # Alternative naming
+        "caphost",         # Zoom meeting host process (Windows)
+        "cpthost",         # Another Zoom process
+    ]
+
     # Patterns that indicate an active meeting
     MEETING_PATTERNS = [
         r"Zoom Meeting",
@@ -37,15 +46,15 @@ class ZoomDetector(MeetingDetector):
     def name(self) -> str:
         return "zoom"
 
-    def is_in_meeting(self, window_titles: list[str]) -> bool:
-        """Check if any Zoom window indicates an active meeting."""
-        for title in window_titles:
-            # Skip if it matches a "not meeting" pattern
-            if any(regex.search(title) for regex in self._not_meeting_regexes):
-                continue
+    @property
+    def process_names(self) -> list[str]:
+        return self.PROCESS_NAMES
 
-            # Check if it matches any meeting pattern
-            if any(regex.search(title) for regex in self._meeting_regexes):
-                return True
+    def is_meeting_title(self, title: str) -> bool:
+        """Check if a Zoom window title indicates an active meeting."""
+        # Skip if it matches a "not meeting" pattern
+        if any(regex.search(title) for regex in self._not_meeting_regexes):
+            return False
 
-        return False
+        # Check if it matches any meeting pattern
+        return any(regex.search(title) for regex in self._meeting_regexes)

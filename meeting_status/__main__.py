@@ -122,14 +122,14 @@ def main():
 
     while running:
         try:
-            # Get current window titles
-            titles = platform.get_window_titles()
-            logger.debug(f"Found {len(titles)} window titles")
+            # Get current windows with process info
+            windows = platform.get_windows()
+            logger.debug(f"Found {len(windows)} windows")
 
             # Check each detector
             in_meeting = False
             for detector in detectors:
-                if detector.is_in_meeting(titles):
+                if detector.is_in_meeting(windows):
                     in_meeting = True
                     logger.debug(f"Meeting detected by {detector.name}")
                     break

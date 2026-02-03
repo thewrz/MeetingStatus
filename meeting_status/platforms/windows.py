@@ -1,7 +1,7 @@
 """Windows window title detection."""
 
 import subprocess
-from .base import Platform
+from .base import Platform, WindowInfo
 
 
 class WindowsPlatform(Platform):
@@ -11,31 +11,45 @@ class WindowsPlatform(Platform):
     def name(self) -> str:
         return "windows"
 
-    def _get_titles_pywin32(self) -> list[str] | None:
-        """Get window titles using pywin32."""
+    def _get_windows_pywin32(self) -> list[WindowInfo] | None:
+        """Get windows with process info using pywin32."""
         try:
             import win32gui
+            import win32process
+            import psutil
 
-            titles = []
+            windows = []
 
             def enum_callback(hwnd, _):
                 if win32gui.IsWindowVisible(hwnd):
                     title = win32gui.GetWindowText(hwnd)
                     if title:
-                        titles.append(title)
+                        try:
+                            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                            proc = psutil.Process(pid)
+                            process_name = proc.name().lower()
+                            # Remove .exe extension if present
+                            if process_name.endswith(".exe"):
+                                process_name = process_name[:-4]
+                            windows.append(WindowInfo(title=title, process_name=process_name))
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            # If we can't get process info, still include the window
+                            windows.append(WindowInfo(title=title, process_name=""))
                 return True
 
             win32gui.EnumWindows(enum_callback, None)
-            return titles
+            return windows
         except ImportError:
             return None
         except Exception:
             return None
 
-    def _get_titles_powershell(self) -> list[str]:
-        """Get window titles using PowerShell (fallback)."""
+    def _get_windows_powershell(self) -> list[WindowInfo]:
+        """Get windows with process info using PowerShell (fallback)."""
         ps_script = '''
-        Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object -ExpandProperty MainWindowTitle
+        Get-Process | Where-Object {$_.MainWindowTitle} | ForEach-Object {
+            $_.ProcessName + "|||" + $_.MainWindowTitle
+        }
         '''
 
         try:
@@ -48,20 +62,29 @@ class WindowsPlatform(Platform):
             if result.returncode != 0:
                 return []
 
-            titles = [t.strip() for t in result.stdout.strip().split("\n") if t.strip()]
-            return titles
+            windows = []
+            for line in result.stdout.strip().split("\n"):
+                line = line.strip()
+                if "|||" in line:
+                    parts = line.split("|||", 1)
+                    if len(parts) == 2:
+                        process_name = parts[0].strip().lower()
+                        title = parts[1].strip()
+                        windows.append(WindowInfo(title=title, process_name=process_name))
+
+            return windows
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return []
 
-    def get_window_titles(self) -> list[str]:
-        """Get window titles, trying pywin32 first, then PowerShell."""
+    def get_windows(self) -> list[WindowInfo]:
+        """Get windows with process info, trying pywin32 first, then PowerShell."""
         # Try pywin32 first (faster and more reliable)
-        titles = self._get_titles_pywin32()
-        if titles is not None:
-            return titles
+        windows = self._get_windows_pywin32()
+        if windows is not None:
+            return windows
 
         # Fall back to PowerShell
-        return self._get_titles_powershell()
+        return self._get_windows_powershell()
 
     def is_available(self) -> bool:
         """Check if window enumeration is available."""

@@ -1,8 +1,9 @@
 """Linux window title detection."""
 
+import os
 import shutil
 import subprocess
-from .base import Platform
+from .base import Platform, WindowInfo
 
 
 class LinuxPlatform(Platform):
@@ -12,11 +13,30 @@ class LinuxPlatform(Platform):
     def name(self) -> str:
         return "linux"
 
-    def _get_titles_wmctrl(self) -> list[str]:
-        """Get window titles using wmctrl."""
+    def _get_process_name(self, pid: int) -> str:
+        """Get process name from PID using /proc filesystem."""
         try:
+            # Try to get the executable name from /proc/<pid>/comm
+            comm_path = f"/proc/{pid}/comm"
+            if os.path.exists(comm_path):
+                with open(comm_path) as f:
+                    return f.read().strip().lower()
+
+            # Fallback: try to get from /proc/<pid>/exe symlink
+            exe_path = f"/proc/{pid}/exe"
+            if os.path.exists(exe_path):
+                exe = os.readlink(exe_path)
+                return os.path.basename(exe).lower()
+        except (OSError, IOError):
+            pass
+        return ""
+
+    def _get_windows_wmctrl(self) -> list[WindowInfo]:
+        """Get windows using wmctrl with PID info."""
+        try:
+            # Use -lp to get PID along with window info
             result = subprocess.run(
-                ["wmctrl", "-l"],
+                ["wmctrl", "-lp"],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -24,21 +44,26 @@ class LinuxPlatform(Platform):
             if result.returncode != 0:
                 return []
 
-            titles = []
+            windows = []
             for line in result.stdout.strip().split("\n"):
                 if not line:
                     continue
-                # wmctrl -l format: <window-id> <desktop> <hostname> <title>
-                # Title is everything after the third space-separated field
-                parts = line.split(None, 3)
-                if len(parts) >= 4:
-                    titles.append(parts[3])
-            return titles
+                # wmctrl -lp format: <window-id> <desktop> <pid> <hostname> <title>
+                parts = line.split(None, 4)
+                if len(parts) >= 5:
+                    try:
+                        pid = int(parts[2])
+                        title = parts[4]
+                        process_name = self._get_process_name(pid)
+                        windows.append(WindowInfo(title=title, process_name=process_name))
+                    except (ValueError, IndexError):
+                        continue
+            return windows
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return []
 
-    def _get_titles_xdotool(self) -> list[str]:
-        """Get window titles using xdotool."""
+    def _get_windows_xdotool(self) -> list[WindowInfo]:
+        """Get windows using xdotool."""
         try:
             # Get all window IDs
             result = subprocess.run(
@@ -51,54 +76,60 @@ class LinuxPlatform(Platform):
                 return []
 
             window_ids = result.stdout.strip().split("\n")
-            titles = []
+            windows = []
 
             for wid in window_ids:
                 if not wid:
                     continue
                 try:
+                    # Get window name
                     name_result = subprocess.run(
                         ["xdotool", "getwindowname", wid],
                         capture_output=True,
                         text=True,
                         timeout=2,
                     )
-                    if name_result.returncode == 0 and name_result.stdout.strip():
-                        titles.append(name_result.stdout.strip())
+                    if name_result.returncode != 0 or not name_result.stdout.strip():
+                        continue
+
+                    title = name_result.stdout.strip()
+
+                    # Get window PID
+                    pid_result = subprocess.run(
+                        ["xdotool", "getwindowpid", wid],
+                        capture_output=True,
+                        text=True,
+                        timeout=2,
+                    )
+                    process_name = ""
+                    if pid_result.returncode == 0 and pid_result.stdout.strip():
+                        try:
+                            pid = int(pid_result.stdout.strip())
+                            process_name = self._get_process_name(pid)
+                        except ValueError:
+                            pass
+
+                    windows.append(WindowInfo(title=title, process_name=process_name))
                 except subprocess.TimeoutExpired:
                     continue
 
-            return titles
+            return windows
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return []
 
-    def _get_titles_qdbus(self) -> list[str]:
-        """Get window titles using qdbus (KDE/Plasma)."""
-        try:
-            result = subprocess.run(
-                ["qdbus", "org.kde.KWin", "/KWin", "org.kde.KWin.queryWindowInfo"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            # This is a simplified approach; real implementation would need parsing
-            return []
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            return []
-
-    def get_window_titles(self) -> list[str]:
-        """Get window titles, trying multiple methods."""
+    def get_windows(self) -> list[WindowInfo]:
+        """Get windows with process info, trying multiple methods."""
         # Try wmctrl first (most reliable for X11)
         if shutil.which("wmctrl"):
-            titles = self._get_titles_wmctrl()
-            if titles:
-                return titles
+            windows = self._get_windows_wmctrl()
+            if windows:
+                return windows
 
         # Fall back to xdotool
         if shutil.which("xdotool"):
-            titles = self._get_titles_xdotool()
-            if titles:
-                return titles
+            windows = self._get_windows_xdotool()
+            if windows:
+                return windows
 
         return []
 

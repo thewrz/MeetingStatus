@@ -1,7 +1,7 @@
 """macOS window title detection."""
 
 import subprocess
-from .base import Platform
+from .base import Platform, WindowInfo
 
 
 class MacOSPlatform(Platform):
@@ -11,19 +11,24 @@ class MacOSPlatform(Platform):
     def name(self) -> str:
         return "macos"
 
-    def get_window_titles(self) -> list[str]:
-        """Get window titles using osascript/AppleScript."""
+    def get_windows(self) -> list[WindowInfo]:
+        """Get windows with process info using osascript/AppleScript."""
+        # AppleScript that returns process name and window title pairs
+        # Format: "process_name|||window_title" separated by ":::"
         script = '''
         tell application "System Events"
-            set windowTitles to {}
+            set windowData to {}
             repeat with proc in (every process whose background only is false)
                 try
+                    set procName to name of proc
                     repeat with w in (every window of proc)
-                        set end of windowTitles to name of w
+                        set winTitle to name of w
+                        set end of windowData to procName & "|||" & winTitle
                     end repeat
                 end try
             end repeat
-            return windowTitles
+            set AppleScript's text item delimiters to ":::"
+            return windowData as text
         end tell
         '''
 
@@ -37,15 +42,21 @@ class MacOSPlatform(Platform):
             if result.returncode != 0:
                 return []
 
-            # AppleScript returns comma-separated list
             output = result.stdout.strip()
             if not output:
                 return []
 
-            # Parse the AppleScript list output
-            # Format is typically: "title1, title2, title3"
-            titles = [t.strip() for t in output.split(", ") if t.strip()]
-            return titles
+            windows = []
+            for item in output.split(":::"):
+                item = item.strip()
+                if "|||" in item:
+                    parts = item.split("|||", 1)
+                    if len(parts) == 2:
+                        process_name = parts[0].strip().lower()
+                        title = parts[1].strip()
+                        windows.append(WindowInfo(title=title, process_name=process_name))
+
+            return windows
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return []
 
