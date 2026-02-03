@@ -1,6 +1,6 @@
 # Meeting Status Detector
 
-A cross-platform Python application that detects Microsoft Teams and Zoom meeting status via window titles and reports to Home Assistant.
+A cross-platform Python application that detects Microsoft Teams and Zoom meeting status via window titles and reports to Home Assistant (inspired by RobertD502/TeamsStatusMacOS), and vibe-coded with Claude.
 
 > **Note:** This application currently sends status updates to a specific Home Assistant script (`send_to_led_sign`) designed for an MQTT-connected LED sign. Future versions will support updating a Home Assistant helper entity directly, allowing you to use the meeting status in any automation you want.
 
