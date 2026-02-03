@@ -1,0 +1,6 @@
+{
+  "ha_url": "http://your-ha-instance:8123",
+  "ha_token": "your-long-lived-access-token",
+  "poll_interval_seconds": 2,
+  "detectors": ["teams", "zoom"]
+}
