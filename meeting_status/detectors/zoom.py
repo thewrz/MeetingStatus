@@ -21,6 +21,7 @@ class ZoomDetector(MeetingDetector):
         r"Zoom Meeting",
         r"Zoom Webinar",
         r"^Zoom$",  # Main Zoom window during meeting
+        r"^Meeting$",  # Linux Zoom meeting window title
         # Meeting ID in title (9-11 digit number)
         r"\b\d{9,11}\b.*Zoom",
         r"Zoom.*\b\d{9,11}\b",
@@ -32,7 +33,7 @@ class ZoomDetector(MeetingDetector):
         r"^Zoom - Free Account$",
         r"^Zoom - Pro$",
         r"^Zoom - Licensed$",
-        r"^Zoom Workplace$",  # New Zoom desktop app
+        r"^Zoom Workplace",  # New Zoom desktop app (with or without account type)
         r"Settings",
         r"^Chat$",
         r"^Contacts$",
